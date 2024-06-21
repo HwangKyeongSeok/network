@@ -9,15 +9,15 @@
 #define MAX_CLNT 256
 #define NAME_SIZE 20
 
-void* handle_clnt(void* arg);
-void send_msg(char* msg, int len);
-void send_private_msg(char* msg, int len, int sender_sock);
-void error_handling(char* msg);
-
 typedef struct {
     int sock;
     char name[NAME_SIZE];
 } Client;
+
+void* handle_clnt(void* arg);
+void send_msg(char* msg, int len);
+void send_private_msg(char* msg, int len, int sender_sock, char* sender_name);
+void error_handling(char* msg);
 
 int clnt_cnt = 0;
 Client clnt_socks[MAX_CLNT];
@@ -72,11 +72,21 @@ void* handle_clnt(void* arg)
     int clnt_sock = *((int*)arg);
     int str_len = 0, i;
     char msg[BUF_SIZE];
+    char sender_name[NAME_SIZE];
+
+    pthread_mutex_lock(&mutx);
+    for (i = 0; i < clnt_cnt; i++) {
+        if (clnt_sock == clnt_socks[i].sock) {
+            strcpy(sender_name, clnt_socks[i].name);
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutx);
 
     while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
     {
         if (msg[0] == '@') {
-            send_private_msg(msg, str_len, clnt_sock);
+            send_private_msg(msg, str_len, clnt_sock, sender_name);
         }
         else {
             send_msg(msg, str_len);
@@ -84,7 +94,7 @@ void* handle_clnt(void* arg)
     }
 
     pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++)
+    for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
     {
         if (clnt_sock == clnt_socks[i].sock)
         {
@@ -108,11 +118,12 @@ void send_msg(char* msg, int len)   // send to all
     pthread_mutex_unlock(&mutx);
 }
 
-void send_private_msg(char* msg, int len, int sender_sock)
+void send_private_msg(char* msg, int len, int sender_sock, char* sender_name)   // send to specific client
 {
     int i;
-    char* target_name = strtok(msg + 1, " "); 
-    char* message = strtok(NULL, ""); 
+    char* target_name = strtok(msg + 1, " "); // Extract target name
+    char* message = strtok(NULL, ""); // Extract message content
+    char full_msg[BUF_SIZE + NAME_SIZE];
 
     if (message == NULL) {
         char error_msg[] = "Incorrect message format. Use @name message.\n";
@@ -124,8 +135,7 @@ void send_private_msg(char* msg, int len, int sender_sock)
     int target_found = 0;
     for (i = 0; i < clnt_cnt; i++) {
         if (strcmp(clnt_socks[i].name, target_name) == 0) {
-            char full_msg[BUF_SIZE + NAME_SIZE];
-            sprintf(full_msg, "%s %s", clnt_socks[i].name, message);
+            sprintf(full_msg, "[%s to %s] %s", sender_name, target_name, message);
             write(clnt_socks[i].sock, full_msg, strlen(full_msg));
             target_found = 1;
             break;

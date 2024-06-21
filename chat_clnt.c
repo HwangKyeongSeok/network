@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
     if (connect(sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1)
         error_handling("connect() error!");
 
-    write(sock, name, NAME_SIZE);
+    write(sock, name, NAME_SIZE); // 서버로 이름 전송
 
     pthread_create(&snd_thread, NULL, send_msg, (void*)&sock);
     pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void* send_msg(void* arg) 
+void* send_msg(void* arg)   // send thread main
 {
     int sock = *((int*)arg);
     char name_msg[BUF_SIZE + NAME_SIZE];
@@ -66,7 +66,7 @@ void* send_msg(void* arg)
     return NULL;
 }
 
-void* recv_msg(void* arg) 
+void* recv_msg(void* arg)   // read thread main
 {
     int sock = *((int*)arg);
     char name_msg[BUF_SIZE + NAME_SIZE];
