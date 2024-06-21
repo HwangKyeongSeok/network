@@ -51,7 +51,7 @@ int main(int argc, char* argv[])
 void* send_msg(void* arg)   // send thread main
 {
     int sock = *((int*)arg);
-    char name_msg[BUF_SIZE + NAME_SIZE];
+    char name_msg[BUF_SIZE + NAME_SIZE + 2];
     while (1)
     {
         fgets(msg, BUF_SIZE, stdin);
@@ -69,11 +69,11 @@ void* send_msg(void* arg)   // send thread main
 void* recv_msg(void* arg)   // read thread main
 {
     int sock = *((int*)arg);
-    char name_msg[BUF_SIZE + NAME_SIZE];
+    char name_msg[BUF_SIZE + NAME_SIZE + 2];
     int str_len;
     while (1)
     {
-        str_len = read(sock, name_msg, BUF_SIZE + NAME_SIZE - 1);
+        str_len = read(sock, name_msg, BUF_SIZE + NAME_SIZE + 1);
         if (str_len == -1)
             return (void*)-1;
         name_msg[str_len] = 0;

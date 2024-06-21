@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 
         pthread_mutex_lock(&mutx);
         clnt_socks[clnt_cnt].sock = clnt_sock;
-        read(clnt_sock, clnt_socks[clnt_cnt].name, NAME_SIZE);
+        read(clnt_sock, clnt_socks[clnt_cnt].name, NAME_SIZE); // 클라이언트 이름 읽기
         clnt_cnt++;
         pthread_mutex_unlock(&mutx);
 
@@ -71,22 +71,14 @@ void* handle_clnt(void* arg)
 {
     int clnt_sock = *((int*)arg);
     int str_len = 0, i;
-    char msg[BUF_SIZE];
-    char sender_name[NAME_SIZE];
+    char msg[BUF_SIZE + NAME_SIZE + 2]; // 이름과 메시지를 모두 포함할 수 있는 충분한 크기
 
-    pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++) {
-        if (clnt_sock == clnt_socks[i].sock) {
-            strcpy(sender_name, clnt_socks[i].name);
-            break;
-        }
-    }
-    pthread_mutex_unlock(&mutx);
-
-    while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
+    while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0)
     {
-        if (msg[0] == '@') {
-            send_private_msg(msg, str_len, clnt_sock, sender_name);
+        msg[str_len] = 0; // 문자열 종료 문자 추가
+
+        if (msg[NAME_SIZE] == '@') {
+            send_private_msg(msg, str_len, clnt_sock, msg);
         }
         else {
             send_msg(msg, str_len);
@@ -121,7 +113,7 @@ void send_msg(char* msg, int len)   // send to all
 void send_private_msg(char* msg, int len, int sender_sock, char* sender_name)   // send to specific client
 {
     int i;
-    char* target_name = strtok(msg + 1, " "); // Extract target name
+    char* target_name = strtok(msg + NAME_SIZE + 1, " "); // Extract target name
     char* message = strtok(NULL, ""); // Extract message content
     char full_msg[BUF_SIZE + NAME_SIZE];
 
