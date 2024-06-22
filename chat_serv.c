@@ -3,15 +3,15 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 #include <pthread.h>
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 100
 #define MAX_CLNT 256
 #define NAME_SIZE 20
 
 void* handle_clnt(void* arg);
-void send_msg(char* msg, int len, int sender_sock);
-void send_private_msg(char* msg, int len, char* target_name);
+void send_msg(char* msg, int len, int clnt_idx);
 void error_handling(char* msg);
 
 int clnt_cnt = 0;
@@ -25,16 +25,13 @@ int main(int argc, char* argv[])
     struct sockaddr_in serv_adr, clnt_adr;
     socklen_t clnt_adr_sz;
     pthread_t t_id;
-
     if (argc != 2) {
-        printf("Usage: %s <port>\n", argv[0]);
+        printf("Usage : %s <port>\n", argv[0]);
         exit(1);
     }
 
     pthread_mutex_init(&mutx, NULL);
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (serv_sock == -1)
-        error_handling("socket() error");
 
     memset(&serv_adr, 0, sizeof(serv_adr));
     serv_adr.sin_family = AF_INET;
@@ -43,17 +40,18 @@ int main(int argc, char* argv[])
 
     if (bind(serv_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1)
         error_handling("bind() error");
-
     if (listen(serv_sock, 5) == -1)
         error_handling("listen() error");
 
-    while (1) {
+    while (1)
+    {
         clnt_adr_sz = sizeof(clnt_adr);
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 
         pthread_mutex_lock(&mutx);
         clnt_socks[clnt_cnt] = clnt_sock;
-        read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE); // Receive client name
+        read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE - 1);  // 클라이언트 이름 저장
+        clnt_names[clnt_cnt][NAME_SIZE - 1] = '\0';  // null-terminate
         clnt_cnt++;
         pthread_mutex_unlock(&mutx);
 
@@ -68,50 +66,32 @@ int main(int argc, char* argv[])
 void* handle_clnt(void* arg)
 {
     int clnt_sock = *((int*)arg);
-    int str_len = 0;
+    int str_len = 0, i;
     char msg[BUF_SIZE];
-    char target_name[NAME_SIZE];
-    char* msg_start;
-    char* target_start;
-
-    while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
-        msg[str_len] = '\0'; // Ensure null-terminated string
-
-        // Find the end of the sender's name
-        msg_start = strchr(msg, ']');
-        if (msg_start != NULL) {
-            msg_start++; // Move past the ']'
-
-            // Check if the message starts with '@'
-            if (msg_start[0] == ' ' && msg_start[1] == '@') {
-                target_start = msg_start + 2; // Move past the '@'
-                char* msg_content = strchr(target_start, ' ');
-                if (msg_content != NULL) {
-                    int name_len = msg_content - target_start;
-                    strncpy(target_name, target_start, name_len);
-                    target_name[name_len] = '\0'; // Null-terminate the target name
-
-                    send_private_msg(msg_content + 1, strlen(msg_content + 1), target_name);
-                }
-                else {
-                    send_msg(msg, str_len, clnt_sock); // Send as a normal message if no space found after @username
-                }
-            }
-            else {
-                send_msg(msg, str_len, clnt_sock); // Send as a normal message if no @username found
-            }
-        }
-        else {
-            send_msg(msg, str_len, clnt_sock); // Send as a normal message if no ] found
-        }
-    }
+    int clnt_idx;
 
     pthread_mutex_lock(&mutx);
-    for (int i = 0; i < clnt_cnt; i++) {
+    for (i = 0; i < clnt_cnt; i++) {
         if (clnt_sock == clnt_socks[i]) {
-            while (i++ < clnt_cnt - 1) {
+            clnt_idx = i;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutx);
+
+    while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
+        send_msg(msg, str_len, clnt_idx);
+
+    pthread_mutex_lock(&mutx);
+    for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
+    {
+        if (clnt_sock == clnt_socks[i])
+        {
+            while (i < clnt_cnt - 1)
+            {
                 clnt_socks[i] = clnt_socks[i + 1];
-                strcpy(clnt_names[i], clnt_names[i + 1]);
+                strncpy(clnt_names[i], clnt_names[i + 1], NAME_SIZE);  // 이름 이동
+                i++;
             }
             break;
         }
@@ -121,39 +101,17 @@ void* handle_clnt(void* arg)
     close(clnt_sock);
     return NULL;
 }
-
-void send_msg(char* msg, int len, int sender_sock)
+void send_msg(char* msg, int len, int clnt_idx)   // send to all
 {
+    int i;
+    char name_msg[NAME_SIZE + BUF_SIZE];
+    sprintf(name_msg, "[%s] %s", clnt_names[clnt_idx], msg);
+
     pthread_mutex_lock(&mutx);
-    for (int i = 0; i < clnt_cnt; i++) {
-        if (clnt_socks[i] != sender_sock) { // Exclude sender
-            write(clnt_socks[i], msg, len);
-        }
-    }
+    for (i = 0; i < clnt_cnt; i++)
+        write(clnt_socks[i], name_msg, strlen(name_msg));
     pthread_mutex_unlock(&mutx);
 }
-
-void send_private_msg(char* msg, int len, char* target_name)
-{
-    int target_sock = -1;
-    pthread_mutex_lock(&mutx);
-    for (int i = 0; i < clnt_cnt; i++) {
-        if (strcmp(clnt_names[i], target_name) == 0) {
-            target_sock = clnt_socks[i];
-            break;
-        }
-    }
-
-    if (target_sock != -1) {
-        write(target_sock, msg, len);
-    }
-    else {
-        char error_msg[BUF_SIZE] = "User not found\n";
-        write(target_sock, error_msg, strlen(error_msg));
-    }
-    pthread_mutex_unlock(&mutx);
-}
-
 void error_handling(char* msg)
 {
     fputs(msg, stderr);
