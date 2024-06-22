@@ -81,7 +81,9 @@ void* handle_clnt(void* arg) {
 
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
         msg[str_len] = '\0';
+        // name_msg가 충분한 크기를 가지도록 확인
         snprintf(name_msg, sizeof(name_msg), "[%s] %s", clnt_names[clnt_idx], msg);
+        name_msg[sizeof(name_msg) - 1] = '\0';  // 버퍼 오버플로 방지
         send_msg(name_msg, strlen(name_msg), clnt_idx);
     }
 
