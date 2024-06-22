@@ -11,7 +11,7 @@
 #define NAME_SIZE 20
 
 void* handle_clnt(void* arg);
-void send_msg(char* msg, int len);
+void send_msg(char* msg, int len, int exclude_sock);
 void error_handling(char* msg);
 
 int clnt_cnt = 0;
@@ -82,8 +82,7 @@ void* handle_clnt(void* arg) {
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
         msg[str_len] = '\0';
         snprintf(name_msg, sizeof(name_msg), "[%s] %s", clnt_names[clnt_idx], msg);
-        name_msg[sizeof(name_msg) - 1] = '\0';  // 버퍼 오버플로 방지
-        send_msg(name_msg, strlen(name_msg));
+        send_msg(name_msg, strlen(name_msg), clnt_sock);
     }
 
     pthread_mutex_lock(&mutx);
@@ -102,11 +101,13 @@ void* handle_clnt(void* arg) {
     return NULL;
 }
 
-void send_msg(char* msg, int len) {  // send to all
+void send_msg(char* msg, int len, int exclude_sock) {  // send to all except the sender
     int i;
     pthread_mutex_lock(&mutx);
     for (i = 0; i < clnt_cnt; i++) {
-        write(clnt_socks[i], msg, len);
+        if (clnt_socks[i] != exclude_sock) {
+            write(clnt_socks[i], msg, len);
+        }
     }
     pthread_mutex_unlock(&mutx);
 }
