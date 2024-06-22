@@ -38,8 +38,6 @@ int main(int argc, char* argv[])
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
         error_handling("connect() error");
 
-    write(sock, name, NAME_SIZE);  // 클라이언트 이름 전송
-
     pthread_create(&snd_thread, NULL, send_msg, (void*)&sock);
     pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
     pthread_join(snd_thread, &thread_return);
@@ -50,6 +48,8 @@ int main(int argc, char* argv[])
 
 void* send_msg(void* arg)   // send thread main
 {
+    write(sock, name, NAME_SIZE);  // 클라이언트 이름 전송
+
     int sock = *((int*)arg);
     while (1)
     {
