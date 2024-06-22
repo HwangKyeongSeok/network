@@ -1,148 +1,104 @@
-#include <stdio.h>
+#include <stdio.h> 
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <string.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <pthread.h>
 
 #define BUF_SIZE 100
 #define MAX_CLNT 256
-#define NAME_SIZE 20
-
-typedef struct {
-    int sock;
-    char name[NAME_SIZE];
-} Client;
 
 void* handle_clnt(void* arg);
 void send_msg(char* msg, int len);
-void send_private_msg(char* msg, int len, int sender_sock, char* sender_name);
 void error_handling(char* msg);
 
 int clnt_cnt = 0;
-Client clnt_socks[MAX_CLNT];
+int clnt_socks[MAX_CLNT];
 pthread_mutex_t mutx;
 
 int main(int argc, char* argv[])
 {
-    int serv_sock, clnt_sock;
-    struct sockaddr_in serv_adr, clnt_adr;
-    int clnt_adr_sz;
-    pthread_t t_id;
+	int serv_sock, clnt_sock;
+	struct sockaddr_in serv_adr, clnt_adr;
+	int clnt_adr_sz;
+	pthread_t t_id;
+	if (argc != 2) {
+		printf("Usage : %s <port>\n", argv[0]);
+		exit(1);
+	}
 
-    if (argc != 2) {
-        printf("Usage : %s <port>\n", argv[0]);
-        exit(1);
-    }
+	pthread_mutex_init(&mutx, NULL);
+	serv_sock = socket(PF_INET, SOCK_STREAM, 0);
 
-    pthread_mutex_init(&mutx, NULL);
-    serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+	memset(&serv_adr, 0, sizeof(serv_adr));
+	serv_adr.sin_family = AF_INET;
+	serv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
+	serv_adr.sin_port = htons(atoi(argv[1]));
 
-    memset(&serv_adr, 0, sizeof(serv_adr));
-    serv_adr.sin_family = AF_INET;
-    serv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_adr.sin_port = htons(atoi(argv[1]));
+	if (bind(serv_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1)
+		error_handling("bind() error");
+	if (listen(serv_sock, 5) == -1)
+		error_handling("listen() error");
 
-    if (bind(serv_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1)
-        error_handling("bind() error");
-    if (listen(serv_sock, 5) == -1)
-        error_handling("listen() error");
+	while (1)
+	{
+		clnt_adr_sz = sizeof(clnt_adr);
+		clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 
-    while (1)
-    {
-        clnt_adr_sz = sizeof(clnt_adr);
-        clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
+		pthread_mutex_lock(&mutx);
+		clnt_socks[clnt_cnt++] = clnt_sock;
+		pthread_mutex_unlock(&mutx);
 
-        pthread_mutex_lock(&mutx);
-        clnt_socks[clnt_cnt].sock = clnt_sock;
-        read(clnt_sock, clnt_socks[clnt_cnt].name, NAME_SIZE); // 클라이언트 이름 읽기
-        clnt_cnt++;
-        pthread_mutex_unlock(&mutx);
-
-        pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
-        pthread_detach(t_id);
-        printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
-    }
-    close(serv_sock);
-    return 0;
+		pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
+		pthread_detach(t_id);
+		printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
+	}
+	close(serv_sock);
+	return 0;
 }
 
 void* handle_clnt(void* arg)
 {
-    int clnt_sock = *((int*)arg);
-    int str_len = 0, i;
-    char msg[BUF_SIZE + NAME_SIZE + 2]; // 이름과 메시지를 모두 포함할 수 있는 충분한 크기
+	int clnt_sock = *((int*)arg);
+	int str_len = 0, i;
+	char msg[BUF_SIZE];
 
-    while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0)
-    {
-        msg[str_len] = 0; // 문자열 종료 문자 추가
+	while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
+		send_msg(msg, str_len);
 
-        if (msg[NAME_SIZE] == '@') {
-            send_private_msg(msg, str_len, clnt_sock, msg);
-        }
-        else {
-            send_msg(msg, str_len);
-        }
-    }
+	pthread_mutex_lock(&mutx);
+	for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
+	{
+		if (clnt_sock == clnt_socks[i])
+		{
+			while (i < clnt_cnt - 1)
+			{
+				clnt_socks[i] = clnt_socks[i + 1];
+				i++;
 
-    pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
-    {
-        if (clnt_sock == clnt_socks[i].sock)
-        {
-            while (i++ < clnt_cnt - 1)
-                clnt_socks[i] = clnt_socks[i + 1];
-            break;
-        }
-    }
-    clnt_cnt--;
-    pthread_mutex_unlock(&mutx);
-    close(clnt_sock);
-    return NULL;
+			}
+
+			break;
+		}
+	}
+	clnt_cnt--;
+	pthread_mutex_unlock(&mutx);
+	close(clnt_sock);
+	return NULL;
 }
-
 void send_msg(char* msg, int len)   // send to all
 {
-    int i;
-    pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++)
-        write(clnt_socks[i].sock, msg, len);
-    pthread_mutex_unlock(&mutx);
+	int i;
+	pthread_mutex_lock(&mutx);
+	for (i = 0; i < clnt_cnt; i++)
+		write(clnt_socks[i], msg, len);
+	pthread_mutex_unlock(&mutx);
 }
-
-void send_private_msg(char* msg, int len, int sender_sock, char* sender_name)   // send to specific client
-{
-    int i;
-    char* target_name = strtok(msg + NAME_SIZE + 1, " "); // Extract target name
-    char* message = strtok(NULL, ""); // Extract message content
-    char full_msg[BUF_SIZE + NAME_SIZE];
-
-    if (message == NULL) {
-        char error_msg[] = "Incorrect message format. Use @name message.\n";
-        write(sender_sock, error_msg, sizeof(error_msg));
-        return;
-    }
-
-    pthread_mutex_lock(&mutx);
-    int target_found = 0;
-    for (i = 0; i < clnt_cnt; i++) {
-        if (strcmp(clnt_socks[i].name, target_name) == 0) {
-            sprintf(full_msg, "[%s to %s] %s", sender_name, target_name, message);
-            write(clnt_socks[i].sock, full_msg, strlen(full_msg));
-            target_found = 1;
-            break;
-        }
-    }
-    if (!target_found) {
-        char error_msg[] = "User not found.\n";
-        write(sender_sock, error_msg, sizeof(error_msg));
-    }
-    pthread_mutex_unlock(&mutx);
-}
-
 void error_handling(char* msg)
 {
-    fputs(msg, stderr);
-    fputc('\n', stderr);
-    exit(1);
+	fputs(msg, stderr);
+	fputc('\n', stderr);
+	exit(1);
 }
