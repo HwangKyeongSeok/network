@@ -67,6 +67,7 @@ void* handle_clnt(void* arg) {
     int clnt_sock = *((int*)arg);
     int str_len = 0, i;
     char msg[BUF_SIZE];
+    char name_msg[NAME_SIZE + BUF_SIZE];
     int clnt_idx;
 
     pthread_mutex_lock(&mutx);
@@ -79,17 +80,17 @@ void* handle_clnt(void* arg) {
     pthread_mutex_unlock(&mutx);
 
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
-        msg[str_len] = '\0';  // null-terminate the message
-        send_msg(msg, str_len, clnt_idx);
+        msg[str_len] = '\0';
+        sprintf(name_msg, "[%s] %s", clnt_names[clnt_idx], msg);
+        send_msg(name_msg, str_len + strlen(clnt_names[clnt_idx]) + 3, clnt_idx);
     }
 
     pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++) {  // remove disconnected client
+    for (i = 0; i < clnt_cnt; i++) {
         if (clnt_sock == clnt_socks[i]) {
-            while (i < clnt_cnt - 1) {
+            while (i++ < clnt_cnt - 1) {
                 clnt_socks[i] = clnt_socks[i + 1];
-                strncpy(clnt_names[i], clnt_names[i + 1], NAME_SIZE);  // 이름 이동
-                i++;
+                strcpy(clnt_names[i], clnt_names[i + 1]);
             }
             break;
         }
@@ -100,14 +101,13 @@ void* handle_clnt(void* arg) {
     return NULL;
 }
 
-void send_msg(char* msg, int len, int clnt_idx) {   // send to all
+void send_msg(char* msg, int len, int clnt_idx) {  // send to all
     int i;
-    char name_msg[NAME_SIZE + BUF_SIZE];
-    snprintf(name_msg, sizeof(name_msg), "[%s] %s", clnt_names[clnt_idx], msg);
-
     pthread_mutex_lock(&mutx);
     for (i = 0; i < clnt_cnt; i++) {
-        write(clnt_socks[i], name_msg, strlen(name_msg));
+        if (i != clnt_idx) {
+            write(clnt_socks[i], msg, len);
+        }
     }
     pthread_mutex_unlock(&mutx);
 }
