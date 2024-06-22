@@ -72,18 +72,17 @@ void* handle_clnt(void* arg)
     char msg[BUF_SIZE];
     char target_name[NAME_SIZE];
     char* msg_start;
-    char* name_end;
     char* target_start;
 
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
         msg[str_len] = '\0'; // Ensure null-terminated string
 
         // Find the end of the sender's name
-        name_end = strchr(msg, ']');
-        if (name_end != NULL) {
-            msg_start = name_end + 1; // Move past the ']'
+        msg_start = strchr(msg, ']');
+        if (msg_start != NULL) {
+            msg_start++; // Move past the ']'
 
-            // Check if the message starts with '@' after a space
+            // Check if the message starts with '@'
             if (msg_start[0] == ' ' && msg_start[1] == '@') {
                 target_start = msg_start + 2; // Move past the '@'
                 char* msg_content = strchr(target_start, ' ');
@@ -94,13 +93,16 @@ void* handle_clnt(void* arg)
 
                     send_private_msg(msg_content + 1, strlen(msg_content + 1), target_name);
                 }
+                else {
+                    send_msg(msg, str_len, clnt_sock); // Send as a normal message if no space found after @username
+                }
             }
             else {
-                send_msg(msg, str_len, clnt_sock);
+                send_msg(msg, str_len, clnt_sock); // Send as a normal message if no @username found
             }
         }
         else {
-            send_msg(msg, str_len, clnt_sock);
+            send_msg(msg, str_len, clnt_sock); // Send as a normal message if no ] found
         }
     }
 
