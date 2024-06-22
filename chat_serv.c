@@ -67,7 +67,7 @@ void* handle_clnt(void* arg) {
     int clnt_sock = *((int*)arg);
     int str_len = 0, i;
     char msg[BUF_SIZE];
-    char name_msg[NAME_SIZE + BUF_SIZE];
+    char name_msg[NAME_SIZE + BUF_SIZE + 3];  // 추가 공간을 위해 +3
     int clnt_idx;
 
     pthread_mutex_lock(&mutx);
@@ -81,8 +81,8 @@ void* handle_clnt(void* arg) {
 
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
         msg[str_len] = '\0';
-        sprintf(name_msg, "[%s] %s", clnt_names[clnt_idx], msg);
-        send_msg(name_msg, str_len + strlen(clnt_names[clnt_idx]) + 3, clnt_idx);
+        snprintf(name_msg, sizeof(name_msg), "[%s] %s", clnt_names[clnt_idx], msg);
+        send_msg(name_msg, strlen(name_msg), clnt_idx);
     }
 
     pthread_mutex_lock(&mutx);
