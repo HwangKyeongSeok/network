@@ -19,12 +19,12 @@ int clnt_socks[MAX_CLNT];
 char clnt_names[MAX_CLNT][NAME_SIZE];
 pthread_mutex_t mutx;
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     int serv_sock, clnt_sock;
     struct sockaddr_in serv_adr, clnt_adr;
     socklen_t clnt_adr_sz;
     pthread_t t_id;
+
     if (argc != 2) {
         printf("Usage : %s <port>\n", argv[0]);
         exit(1);
@@ -43,15 +43,14 @@ int main(int argc, char* argv[])
     if (listen(serv_sock, 5) == -1)
         error_handling("listen() error");
 
-    while (1)
-    {
+    while (1) {
         clnt_adr_sz = sizeof(clnt_adr);
         clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
 
         pthread_mutex_lock(&mutx);
         clnt_socks[clnt_cnt] = clnt_sock;
-        read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE - 1);  // 클라이언트 이름 저장
-        clnt_names[clnt_cnt][NAME_SIZE - 1] = '\0';  // null-terminate
+        int str_len = read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE - 1);  // 클라이언트 이름 저장
+        clnt_names[clnt_cnt][str_len] = '\0';  // null-terminate
         clnt_cnt++;
         pthread_mutex_unlock(&mutx);
 
@@ -59,12 +58,12 @@ int main(int argc, char* argv[])
         pthread_detach(t_id);
         printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
     }
+
     close(serv_sock);
     return 0;
 }
 
-void* handle_clnt(void* arg)
-{
+void* handle_clnt(void* arg) {
     int clnt_sock = *((int*)arg);
     int str_len = 0, i;
     char msg[BUF_SIZE];
@@ -85,12 +84,9 @@ void* handle_clnt(void* arg)
     }
 
     pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
-    {
-        if (clnt_sock == clnt_socks[i])
-        {
-            while (i < clnt_cnt - 1)
-            {
+    for (i = 0; i < clnt_cnt; i++) {  // remove disconnected client
+        if (clnt_sock == clnt_socks[i]) {
+            while (i < clnt_cnt - 1) {
                 clnt_socks[i] = clnt_socks[i + 1];
                 strncpy(clnt_names[i], clnt_names[i + 1], NAME_SIZE);  // 이름 이동
                 i++;
@@ -104,8 +100,7 @@ void* handle_clnt(void* arg)
     return NULL;
 }
 
-void send_msg(char* msg, int len, int clnt_idx)   // send to all
-{
+void send_msg(char* msg, int len, int clnt_idx) {   // send to all
     int i;
     char name_msg[NAME_SIZE + BUF_SIZE];
     sprintf(name_msg, "[%s] %s", clnt_names[clnt_idx], msg);
@@ -117,8 +112,7 @@ void send_msg(char* msg, int len, int clnt_idx)   // send to all
     pthread_mutex_unlock(&mutx);
 }
 
-void error_handling(char* msg)
-{
+void error_handling(char* msg) {
     fputs(msg, stderr);
     fputc('\n', stderr);
     exit(1);
