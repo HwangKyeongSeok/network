@@ -79,8 +79,10 @@ void* handle_clnt(void* arg)
     }
     pthread_mutex_unlock(&mutx);
 
-    while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
+    while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
+        msg[str_len] = '\0';  // null-terminate the message
         send_msg(msg, str_len, clnt_idx);
+    }
 
     pthread_mutex_lock(&mutx);
     for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
@@ -101,6 +103,7 @@ void* handle_clnt(void* arg)
     close(clnt_sock);
     return NULL;
 }
+
 void send_msg(char* msg, int len, int clnt_idx)   // send to all
 {
     int i;
@@ -108,10 +111,12 @@ void send_msg(char* msg, int len, int clnt_idx)   // send to all
     sprintf(name_msg, "[%s] %s", clnt_names[clnt_idx], msg);
 
     pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++)
+    for (i = 0; i < clnt_cnt; i++) {
         write(clnt_socks[i], name_msg, strlen(name_msg));
+    }
     pthread_mutex_unlock(&mutx);
 }
+
 void error_handling(char* msg)
 {
     fputs(msg, stderr);
