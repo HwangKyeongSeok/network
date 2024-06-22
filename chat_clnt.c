@@ -16,8 +16,7 @@ void error_handling(char* msg);
 char name[NAME_SIZE] = "[DEFAULT]";
 char msg[BUF_SIZE];
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     int sock;
     struct sockaddr_in serv_addr;
     pthread_t snd_thread, rcv_thread;
@@ -48,15 +47,11 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void* send_msg(void* arg)   // send thread main
-{
-
+void* send_msg(void* arg) {  // send thread main
     int sock = *((int*)arg);
-    while (1)
-    {
+    while (1) {
         fgets(msg, BUF_SIZE, stdin);
-        if (!strcmp(msg, "q\n") || !strcmp(msg, "Q\n"))
-        {
+        if (!strcmp(msg, "q\n") || !strcmp(msg, "Q\n")) {
             close(sock);
             exit(0);
         }
@@ -65,13 +60,11 @@ void* send_msg(void* arg)   // send thread main
     return NULL;
 }
 
-void* recv_msg(void* arg)   // read thread main
-{
+void* recv_msg(void* arg) {  // read thread main
     int sock = *((int*)arg);
     char name_msg[NAME_SIZE + BUF_SIZE];
     int str_len;
-    while (1)
-    {
+    while (1) {
         str_len = read(sock, name_msg, NAME_SIZE + BUF_SIZE - 1);
         if (str_len == -1)
             return (void*)-1;
@@ -81,8 +74,7 @@ void* recv_msg(void* arg)   // read thread main
     return NULL;
 }
 
-void error_handling(char* msg)
-{
+void error_handling(char* msg) {
     fputs(msg, stderr);
     fputc('\n', stderr);
     exit(1);

@@ -103,7 +103,7 @@ void* handle_clnt(void* arg) {
 void send_msg(char* msg, int len, int clnt_idx) {   // send to all
     int i;
     char name_msg[NAME_SIZE + BUF_SIZE];
-    sprintf(name_msg, "[%s] %s", clnt_names[clnt_idx], msg);
+    snprintf(name_msg, sizeof(name_msg), "[%s] %s", clnt_names[clnt_idx], msg);
 
     pthread_mutex_lock(&mutx);
     for (i = 0; i < clnt_cnt; i++) {
