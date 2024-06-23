@@ -2,27 +2,25 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
 #include <pthread.h>
+#include <arpa/inet.h>
 
-#define BUF_SIZE 100
+#define BUF_SIZE 1024
 #define MAX_CLNT 256
-#define NAME_SIZE 20
 
 void* handle_clnt(void* arg);
-void send_msg(char* msg, int len, int exclude_sock);
+void send_msg(char* msg, int len);
 void error_handling(char* msg);
 
 int clnt_cnt = 0;
 int clnt_socks[MAX_CLNT];
-char clnt_names[MAX_CLNT][NAME_SIZE];
 pthread_mutex_t mutx;
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
     int serv_sock, clnt_sock;
-    struct sockaddr_in serv_adr, clnt_adr;
-    socklen_t clnt_adr_sz;
+    struct sockaddr_in serv_addr, clnt_addr;
+    socklen_t clnt_addr_size;
     pthread_t t_id;
 
     if (argc != 2) {
@@ -32,88 +30,83 @@ int main(int argc, char* argv[]) {
 
     pthread_mutex_init(&mutx, NULL);
     serv_sock = socket(PF_INET, SOCK_STREAM, 0);
+    if (serv_sock == -1)
+        error_handling("socket() error");
 
-    memset(&serv_adr, 0, sizeof(serv_adr));
-    serv_adr.sin_family = AF_INET;
-    serv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_adr.sin_port = htons(atoi(argv[1]));
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_addr.sin_port = htons(atoi(argv[1]));
 
-    if (bind(serv_sock, (struct sockaddr*)&serv_adr, sizeof(serv_adr)) == -1)
+    if (bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
         error_handling("bind() error");
+
     if (listen(serv_sock, 5) == -1)
         error_handling("listen() error");
 
-    while (1) {
-        clnt_adr_sz = sizeof(clnt_adr);
-        clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_adr, &clnt_adr_sz);
+    while (1)
+    {
+        clnt_addr_size = sizeof(clnt_addr);
+        clnt_sock = accept(serv_sock, (struct sockaddr*)&clnt_addr, &clnt_addr_size);
 
         pthread_mutex_lock(&mutx);
-        clnt_socks[clnt_cnt] = clnt_sock;
+        clnt_socks[clnt_cnt++] = clnt_sock;
         pthread_mutex_unlock(&mutx);
 
         pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
         pthread_detach(t_id);
-        printf("Connected client IP: %s \n", inet_ntoa(clnt_adr.sin_addr));
+
+        printf("Connected client IP: %s \n", inet_ntoa(clnt_addr.sin_addr));
     }
 
     close(serv_sock);
     return 0;
 }
 
-void* handle_clnt(void* arg) {
+void* handle_clnt(void* arg)
+{
     int clnt_sock = *((int*)arg);
-    int str_len = 0, i;
+    int str_len = 0;
     char msg[BUF_SIZE];
-    char name_msg[NAME_SIZE + BUF_SIZE + 3];  // 추가 공간을 위해 +3
-    int clnt_idx;
+
+    // 클라이언트 이름 받기
+    char client_name[BUF_SIZE];
+    str_len = read(clnt_sock, client_name, BUF_SIZE - 1);
+    if (str_len == -1)
+        error_handling("read() error!");
+    client_name[str_len] = 0;
+    printf("Client name: %s\n", client_name);
+
+    while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
+        send_msg(msg, str_len);
 
     pthread_mutex_lock(&mutx);
-    int str_len = read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE - 1);  // 클라이언트 이름 저장
-    clnt_names[clnt_cnt][str_len] = '\0';  // null-terminate
-    clnt_cnt++;
-    pthread_mutex_unlock(&mutx);
-
-    pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++) {
-        if (clnt_sock == clnt_socks[i]) {
-            clnt_idx = i;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&mutx);
-
-    while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0) {
-        msg[str_len] = '\0';
-        snprintf(name_msg, sizeof(name_msg), "[%s] %s", clnt_names[clnt_idx], msg);
-        send_msg(name_msg, strlen(name_msg), clnt_sock);
-    }
-
-    pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++) {
-        if (clnt_sock == clnt_socks[i]) {
-            while (i++ < clnt_cnt - 1) {
+    for (int i = 0; i < clnt_cnt; i++)
+    {
+        if (clnt_sock == clnt_socks[i])
+        {
+            while (i++ < clnt_cnt - 1)
                 clnt_socks[i] = clnt_socks[i + 1];
-                strcpy(clnt_names[i], clnt_names[i + 1]);
-            }
             break;
         }
     }
     clnt_cnt--;
     pthread_mutex_unlock(&mutx);
+
     close(clnt_sock);
     return NULL;
 }
 
-void send_msg(char* msg, int len, int exclude_sock) {  // send to all except the sender
-    int i;
+void send_msg(char* msg, int len)
+{
     pthread_mutex_lock(&mutx);
-    for (i = 0; i < clnt_cnt; i++) {
+    for (int i = 0; i < clnt_cnt; i++)
         write(clnt_socks[i], msg, len);
-    }
     pthread_mutex_unlock(&mutx);
 }
 
-void error_handling(char* msg) {
+void error_handling(char* msg)
+{
     fputs(msg, stderr);
     fputc('\n', stderr);
     exit(1);
