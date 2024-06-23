@@ -55,7 +55,6 @@ int main(int argc, char* argv[])
 void* send_msg(void* arg)
 {
     int sock = *((int*)arg);
-    char name_msg[NAME_SIZE + BUF_SIZE];
     while (1)
     {
         fgets(msg, BUF_SIZE, stdin);
@@ -64,8 +63,7 @@ void* send_msg(void* arg)
             close(sock);
             exit(0);
         }
-        snprintf(name_msg, sizeof(name_msg), "%s %s", name, msg);
-        write(sock, name_msg, strlen(name_msg));
+        write(sock, msg, strlen(msg));
     }
     return NULL;
 }
