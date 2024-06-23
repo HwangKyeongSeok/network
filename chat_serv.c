@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 
 #define BUF_SIZE 1024
+#define NAME_SIZE 20
 #define MAX_CLNT 256
 
 void* handle_clnt(void* arg);
@@ -14,6 +15,7 @@ void error_handling(char* msg);
 
 int clnt_cnt = 0;
 int clnt_socks[MAX_CLNT];
+char clnt_names[MAX_CLNT][NAME_SIZE];
 pthread_mutex_t mutx;
 
 int main(int argc, char* argv[])
@@ -70,11 +72,21 @@ void* handle_clnt(void* arg)
     char msg[BUF_SIZE];
 
     // 클라이언트 이름 받기
-    char client_name[BUF_SIZE];
-    str_len = read(clnt_sock, client_name, BUF_SIZE - 1);
+    char client_name[NAME_SIZE];
+    str_len = read(clnt_sock, client_name, NAME_SIZE - 1);
     if (str_len == -1)
         error_handling("read() error!");
     client_name[str_len] = 0;
+
+    pthread_mutex_lock(&mutx);
+    for (int i = 0; i < clnt_cnt; i++) {
+        if (clnt_socks[i] == clnt_sock) {
+            strncpy(clnt_names[i], client_name, NAME_SIZE);
+            break;
+        }
+    }
+    pthread_mutex_unlock(&mutx);
+
     printf("Client name: %s\n", client_name);
 
     while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
@@ -86,7 +98,10 @@ void* handle_clnt(void* arg)
         if (clnt_sock == clnt_socks[i])
         {
             while (i++ < clnt_cnt - 1)
+            {
                 clnt_socks[i] = clnt_socks[i + 1];
+                strncpy(clnt_names[i], clnt_names[i + 1], NAME_SIZE);
+            }
             break;
         }
     }

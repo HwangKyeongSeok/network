@@ -6,12 +6,13 @@
 #include <pthread.h>
 
 #define BUF_SIZE 1024
+#define NAME_SIZE 20
 
 void* send_msg(void* arg);
 void* recv_msg(void* arg);
 void error_handling(char* msg);
 
-char name[BUF_SIZE] = "[DEFAULT]";
+char name[NAME_SIZE] = "[DEFAULT]";
 char msg[BUF_SIZE];
 
 int main(int argc, char* argv[])
@@ -26,7 +27,7 @@ int main(int argc, char* argv[])
         exit(1);
     }
 
-    sprintf(name, "[%s]", argv[3]);
+    snprintf(name, NAME_SIZE, "[%s]", argv[3]);
     sock = socket(PF_INET, SOCK_STREAM, 0);
     if (sock == -1)
         error_handling("socket() error");
@@ -54,7 +55,7 @@ int main(int argc, char* argv[])
 void* send_msg(void* arg)
 {
     int sock = *((int*)arg);
-    char name_msg[BUF_SIZE];
+    char name_msg[NAME_SIZE + BUF_SIZE];
     while (1)
     {
         fgets(msg, BUF_SIZE, stdin);
@@ -63,7 +64,7 @@ void* send_msg(void* arg)
             close(sock);
             exit(0);
         }
-        sprintf(name_msg, "%s %s", name, msg);
+        snprintf(name_msg, sizeof(name_msg), "%s %s", name, msg);
         write(sock, name_msg, strlen(name_msg));
     }
     return NULL;
