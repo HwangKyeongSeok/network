@@ -11,7 +11,7 @@
 
 void* handle_clnt(void* arg);
 void send_msg(char* msg, int len);
-void send_private_msg(char* msg, int len, char* recipient_name);
+void send_private_msg(char* msg, int len, char* recipient_name, int sender_sock);
 void error_handling(char* msg);
 
 int clnt_cnt = 0;
@@ -99,7 +99,7 @@ void* handle_clnt(void* arg)
             char* private_msg = strtok(NULL, "");
             if (recipient_name && private_msg) {
                 snprintf(name_msg, sizeof(name_msg), "[%s] %s", client_name, private_msg);
-                send_private_msg(name_msg, strlen(name_msg), recipient_name);
+                send_private_msg(name_msg, strlen(name_msg), recipient_name, clnt_sock);
             }
         }
         else {
@@ -136,16 +136,25 @@ void send_msg(char* msg, int len)
     pthread_mutex_unlock(&mutx);
 }
 
-void send_private_msg(char* msg, int len, char* recipient_name)
+void send_private_msg(char* msg, int len, char* recipient_name, int sender_sock)
 {
+    int i;
+    int recipient_found = 0;
     pthread_mutex_lock(&mutx);
-    for (int i = 0; i < clnt_cnt; i++) {
+    for (i = 0; i < clnt_cnt; i++) {
         if (strcmp(clnt_names[i], recipient_name) == 0) {
             write(clnt_socks[i], msg, len);
+            recipient_found = 1;
             break;
         }
     }
     pthread_mutex_unlock(&mutx);
+
+    if (!recipient_found) {
+        char error_msg[NAME_SIZE + 50];
+        snprintf(error_msg, sizeof(error_msg), "User [%s] not found.\n", recipient_name);
+        write(sender_sock, error_msg, strlen(error_msg));
+    }
 }
 
 void error_handling(char* msg)
