@@ -70,6 +70,7 @@ void* handle_clnt(void* arg)
     int clnt_sock = *((int*)arg);
     int str_len = 0;
     char msg[BUF_SIZE];
+    char name_msg[NAME_SIZE + BUF_SIZE];
 
     // 클라이언트 이름 받기
     char client_name[NAME_SIZE];
@@ -89,8 +90,12 @@ void* handle_clnt(void* arg)
 
     printf("Client name: %s\n", client_name);
 
-    while ((str_len = read(clnt_sock, msg, sizeof(msg))) != 0)
-        send_msg(msg, str_len);
+    while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0)
+    {
+        msg[str_len] = 0;
+        snprintf(name_msg, sizeof(name_msg), "%s: %s", client_name, msg);
+        send_msg(name_msg, strlen(name_msg));
+    }
 
     pthread_mutex_lock(&mutx);
     for (int i = 0; i < clnt_cnt; i++)
