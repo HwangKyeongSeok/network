@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
 void* handle_clnt(void* arg)
 {
     int clnt_sock = *((int*)arg);
-    int str_len = 0;
+    int str_len = 0, i;
     char msg[BUF_SIZE];
     char name_msg[NAME_SIZE + BUF_SIZE + 5];
 
@@ -81,7 +81,7 @@ void* handle_clnt(void* arg)
     client_name[str_len] = 0;
 
     pthread_mutex_lock(&mutx);
-    for (int i = 0; i < clnt_cnt; i++) {
+    for (i = 0; i < clnt_cnt; i++) {
         if (clnt_socks[i] == clnt_sock) {
             strncpy(clnt_names[i], client_name, NAME_SIZE);
             break;
