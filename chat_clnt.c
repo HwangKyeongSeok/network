@@ -37,8 +37,6 @@ int main(int argc, char* argv[]) {
     if (connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
         error_handling("connect() error");
 
-    write(sock, name, NAME_SIZE);  // 클라이언트 이름 전송
-
     pthread_create(&snd_thread, NULL, send_msg, (void*)&sock);
     pthread_create(&rcv_thread, NULL, recv_msg, (void*)&sock);
     pthread_join(snd_thread, &thread_return);
@@ -49,6 +47,7 @@ int main(int argc, char* argv[]) {
 
 void* send_msg(void* arg) {  // send thread main
     int sock = *((int*)arg);
+    write(sock, name, NAME_SIZE);  // 클라이언트 이름 전송
     while (1) {
         fgets(msg, BUF_SIZE, stdin);
         if (!strcmp(msg, "q\n") || !strcmp(msg, "Q\n")) {

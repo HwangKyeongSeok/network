@@ -49,9 +49,6 @@ int main(int argc, char* argv[]) {
 
         pthread_mutex_lock(&mutx);
         clnt_socks[clnt_cnt] = clnt_sock;
-        int str_len = read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE - 1);  // 클라이언트 이름 저장
-        clnt_names[clnt_cnt][str_len] = '\0';  // null-terminate
-        clnt_cnt++;
         pthread_mutex_unlock(&mutx);
 
         pthread_create(&t_id, NULL, handle_clnt, (void*)&clnt_sock);
@@ -69,6 +66,12 @@ void* handle_clnt(void* arg) {
     char msg[BUF_SIZE];
     char name_msg[NAME_SIZE + BUF_SIZE + 3];  // 추가 공간을 위해 +3
     int clnt_idx;
+
+    pthread_mutex_lock(&mutx);
+    int str_len = read(clnt_sock, clnt_names[clnt_cnt], NAME_SIZE - 1);  // 클라이언트 이름 저장
+    clnt_names[clnt_cnt][str_len] = '\0';  // null-terminate
+    clnt_cnt++;
+    pthread_mutex_unlock(&mutx);
 
     pthread_mutex_lock(&mutx);
     for (i = 0; i < clnt_cnt; i++) {
@@ -105,9 +108,7 @@ void send_msg(char* msg, int len, int exclude_sock) {  // send to all except the
     int i;
     pthread_mutex_lock(&mutx);
     for (i = 0; i < clnt_cnt; i++) {
-        if (clnt_socks[i] != exclude_sock) {
-            write(clnt_socks[i], msg, len);
-        }
+        write(clnt_socks[i], msg, len);
     }
     pthread_mutex_unlock(&mutx);
 }
