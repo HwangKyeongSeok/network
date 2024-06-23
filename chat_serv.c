@@ -11,6 +11,7 @@
 
 void* handle_clnt(void* arg);
 void send_msg(char* msg, int len);
+void send_private_msg(char* msg, int len, char* recipient_name);
 void error_handling(char* msg);
 
 int clnt_cnt = 0;
@@ -70,7 +71,7 @@ void* handle_clnt(void* arg)
     int clnt_sock = *((int*)arg);
     int str_len = 0;
     char msg[BUF_SIZE];
-    char name_msg[NAME_SIZE + BUF_SIZE];
+    char name_msg[NAME_SIZE + BUF_SIZE + 5];
 
     // 클라이언트 이름 받기
     char client_name[NAME_SIZE];
@@ -93,8 +94,18 @@ void* handle_clnt(void* arg)
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0)
     {
         msg[str_len] = 0;
-        snprintf(name_msg, sizeof(name_msg), "[%s] %.900s", client_name, msg);
-        send_msg(name_msg, strlen(name_msg));
+        if (msg[0] == '@') {
+            char* recipient_name = strtok(msg + 1, " ");
+            char* private_msg = strtok(NULL, "");
+            if (recipient_name && private_msg) {
+                snprintf(name_msg, sizeof(name_msg), "[%s] %s", client_name, private_msg);
+                send_private_msg(name_msg, strlen(name_msg), recipient_name);
+            }
+        }
+        else {
+            snprintf(name_msg, sizeof(name_msg), "[%s] %s", client_name, msg);
+            send_msg(name_msg, strlen(name_msg));
+        }
     }
 
     pthread_mutex_lock(&mutx);
@@ -122,6 +133,18 @@ void send_msg(char* msg, int len)
     pthread_mutex_lock(&mutx);
     for (int i = 0; i < clnt_cnt; i++)
         write(clnt_socks[i], msg, len);
+    pthread_mutex_unlock(&mutx);
+}
+
+void send_private_msg(char* msg, int len, char* recipient_name)
+{
+    pthread_mutex_lock(&mutx);
+    for (int i = 0; i < clnt_cnt; i++) {
+        if (strcmp(clnt_names[i], recipient_name) == 0) {
+            write(clnt_socks[i], msg, len);
+            break;
+        }
+    }
     pthread_mutex_unlock(&mutx);
 }
 
