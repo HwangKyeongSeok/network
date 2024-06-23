@@ -93,7 +93,7 @@ void* handle_clnt(void* arg)
     while ((str_len = read(clnt_sock, msg, sizeof(msg) - 1)) != 0)
     {
         msg[str_len] = 0;
-        snprintf(name_msg, sizeof(name_msg) - 1, "[%s] %s", client_name, msg);
+        snprintf(name_msg, sizeof(name_msg), "[%s] %.900s", client_name, msg);
         send_msg(name_msg, strlen(name_msg));
     }
 
