@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 1024 //
 #define NAME_SIZE 20
 #define MAX_CLNT 256
 
@@ -82,27 +82,12 @@ void* handle_clnt(void* arg)
 
     pthread_mutex_lock(&mutx);
     for (int i = 0; i < clnt_cnt; i++) {
-        if (strcmp(clnt_names[i], client_name) == 0) {
-            clnt_socks[i] = clnt_sock;
-            pthread_mutex_unlock(&mutx);
-            printf("Client name %s reconnected.\n", client_name);
-            break;
-        }
-    }
-
-    int is_new_client = 1;
-    for (int i = 0; i < clnt_cnt; i++) {
         if (clnt_socks[i] == clnt_sock) {
             strncpy(clnt_names[i], client_name, NAME_SIZE);
             is_new_client = 0;
             break;
         }
     }
-
-    if (is_new_client) {
-        strncpy(clnt_names[clnt_cnt - 1], client_name, NAME_SIZE);
-    }
-
     pthread_mutex_unlock(&mutx);
 
     printf("Client name: %s\n", client_name);
@@ -125,15 +110,17 @@ void* handle_clnt(void* arg)
     }
 
     pthread_mutex_lock(&mutx);
-    for (int i = 0; i < clnt_cnt; i++)
+    for (i = 0; i < clnt_cnt; i++)   // remove disconnected client
     {
         if (clnt_sock == clnt_socks[i])
         {
-            while (i++ < clnt_cnt - 1)
+            while (i < clnt_cnt - 1)
             {
                 clnt_socks[i] = clnt_socks[i + 1];
                 strncpy(clnt_names[i], clnt_names[i + 1], NAME_SIZE);
+                i++;
             }
+
             break;
         }
     }
