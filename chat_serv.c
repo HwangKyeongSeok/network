@@ -82,11 +82,27 @@ void* handle_clnt(void* arg)
 
     pthread_mutex_lock(&mutx);
     for (int i = 0; i < clnt_cnt; i++) {
-        if (clnt_socks[i] == clnt_sock) {
-            strncpy(clnt_names[i], client_name, NAME_SIZE);
+        if (strcmp(clnt_names[i], client_name) == 0) {
+            clnt_socks[i] = clnt_sock;
+            pthread_mutex_unlock(&mutx);
+            printf("Client name %s reconnected.\n", client_name);
             break;
         }
     }
+
+    int is_new_client = 1;
+    for (int i = 0; i < clnt_cnt; i++) {
+        if (clnt_socks[i] == clnt_sock) {
+            strncpy(clnt_names[i], client_name, NAME_SIZE);
+            is_new_client = 0;
+            break;
+        }
+    }
+
+    if (is_new_client) {
+        strncpy(clnt_names[clnt_cnt - 1], client_name, NAME_SIZE);
+    }
+
     pthread_mutex_unlock(&mutx);
 
     printf("Client name: %s\n", client_name);
@@ -152,8 +168,13 @@ void send_private_msg(char* msg, int len, char* recipient_name, int sender_sock)
 
     if (!recipient_found) {
         char error_msg[NAME_SIZE + 50];
-        snprintf(error_msg, sizeof(error_msg), "User [%s] not found.\n", recipient_name);
-        write(sender_sock, error_msg, strlen(error_msg));
+        for (i = 0; i < clnt_cnt; i++) {
+            if (clnt_socks[i] == sender_sock) {
+                snprintf(error_msg, sizeof(error_msg), "User [%s] not found.\n", recipient_name);
+                write(clnt_socks[i], error_msg, strlen(error_msg));
+                break;
+            }
+        }
     }
 }
 
