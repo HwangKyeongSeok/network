@@ -84,7 +84,6 @@ void* handle_clnt(void* arg)
     for (int i = 0; i < clnt_cnt; i++) {
         if (clnt_socks[i] == clnt_sock) {
             strncpy(clnt_names[i], client_name, NAME_SIZE);
-            is_new_client = 0;
             break;
         }
     }
